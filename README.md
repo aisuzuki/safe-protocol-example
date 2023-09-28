@@ -73,17 +73,61 @@ classDiagram
 
 ```
 
-## Contract interructions
+### Plugin
+```mermaid
+classDiagram
+    IERC165 <|-- ISafeProtocolPlugin
+    ISafeProtocolPlugin <|-- PluginInstance
+    
+    note for ISafeProtocolPlugin "for further details about metadataProvider \n https://github.com/safe-global/safe-core-protocol-specs/blob/main/metadata/README.md"
+    ISafeProtocolPlugin: +name() external
+    ISafeProtocolPlugin: +version() external
+    ISafeProtocolPlugin: +metadataProvider() external
+    ISafeProtocolPlugin: +requiresPermissions() external
 
+```
+
+## Contract interructions
 ### Enabling Plugin
 
 ```mermaid
 sequenceDiagram
     participant User
-    participant Account
+    participant Account as Account(safe)
+    participant Registory
     participant Manager
-    participant Registry
+
+    User->>User: Deploy Registory(owner)
+    User->>User: Deploy Manager(owner, registory address) 
+    User->>User: Deploy Safe(...manager address for fallback handler?)
+    User->>User: Deploy Plugin
+    User->>Registory: addModule(plugin address, MODULE_TYPE_PLUGIN)
+    User->>Account: executeTransaction("enablePlugin[plugin address, PLUGIN_PERMISSION_EXECUTE_CALL]"...)
+    Account->>Account: call falback handler (manager)
+    Account->>Manager: enablePlugin(plugin address, PLUGIN_PERMISSION_EXECUTE_CALL)
+```
+manager.getPuginInfo(account address, plugin address) should return PLUGIN_PERMISSION_EXECUTE_CALL and SENTINEL_MODULES
+
+### Execute trnsaction through Plugin
+
+```mermaid
+sequenceDiagram
+    participant User
     participant Plugin
+    participant Manager
+    participant Account as Account(safe)
+
+    User->>Plugin: callFunction(ISafeProtocolManager manager, safe, ...)
+    Plugin->>Plugin: create SafeProtocolAction
+    Plugin->>Plugin: create SafeRootAccess
+    Plugin->>Manager: executeRootAccess(safe, SafeRootAccess)
+    Manager->>Manager: check if hook is enabled
+    Manager->>Manager: call hook.preCheckRootAccess if hook is enabled
+    Manager->>Manager: check permission of safe (PLUGIN_PERMISSION_EXECUTE_DELEGATECALL)
+    Manager->>Account: executeTransactionFromModuleReturnData using SafeRootAccess.action
+    Manager->>Manager: call hook.postCheck if hook is enabled
+    Manager->>Manager: emit event (RootAccessActionExecuted or RootAccessActionExecutionFailed)
+
 ```
 
 ### Execute transaction through Hook
