@@ -1,15 +1,17 @@
 # Example project using safe-protocol
 
-
 # safe protocol
 
-[safe protocol whitepaper](https://github.com/safe-global/safe-core-protocol-specs)
-[safe core protocol github repo](https://github.com/safe-global/safe-core-protocol)
-[safe core demo](https://github.com/5afe/safe-core-protocol-demo/)
+## Resources
+
+- [safe protocol whitepaper](https://github.com/safe-global/safe-core-protocol-specs)
+- [safe core protocol github repo](https://github.com/safe-global/safe-core-protocol)
+- [safe core demo](https://github.com/5afe/safe-core-protocol-demo/)
 
 # safe protocol overviews
 
 ## Contract structures
+
 ### SafeProtocolManager
 
 ```mermaid
@@ -59,6 +61,7 @@ classDiagram
 ```
 
 ### SafeProtocolRegistry
+
 ```mermaid
 classDiagram
 
@@ -74,6 +77,7 @@ classDiagram
 ```
 
 ### Plugin
+
 ```mermaid
 classDiagram
     IERC165 <|-- ISafeProtocolPlugin
@@ -88,6 +92,7 @@ classDiagram
 ```
 
 ## Contract interructions
+
 ### Enabling Plugin
 
 ```mermaid
@@ -106,15 +111,58 @@ sequenceDiagram
     Account->>Account: call falback handler (manager)
     Account->>Manager: enablePlugin(plugin address, PLUGIN_PERMISSION_EXECUTE_CALL)
 ```
+
 manager.getPuginInfo(account address, plugin address) should return PLUGIN_PERMISSION_EXECUTE_CALL and SENTINEL_MODULES
 
-### Execute trnsaction through Plugin
+### Enabling Hook
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant Account as Account(safe)
+    participant Registory
+    participant Manager as Manager(HooksManager)
+
+    User->>User: Deploy Registory(owner)
+    User->>User: Deploy Manager(owner, registory address) 
+    User->>User: Deploy Safe(...manager address for fallback handler?)
+    User->>User: Deploy Hook
+    User->>Registory: addModule(plugin address, MODULE_TYPE_HOOKS)
+    User->>Account: executeTransaction("setHooks[address]")
+    Account->>Account: call falback handler (manager)
+    Account->>Manager: setHooks(address)
+```
+
+### Enabling FunctionHandler
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant Account as Account(safe)
+    participant Registory
+    participant Manager as Manager(FunctionHandlerManager)
+
+
+    User->>User: Deploy Registory(owner)
+    User->>User: Deploy Manager(owner, registory address) 
+    User->>User: Deploy Safe(...manager address for fallback handler?)
+    User->>User: Deploy FunctionHandler
+    User->>Registory: addModule(plugin address, MODULE_TYPE_FUNCTION_HANDLER)
+    User->>User: create functionId
+    Note left of Account: function identifier is 4 bytes function signature and used as key of function handler
+    User->>Account: executeTransaction("setFunctionHandler[functionId, address]")
+    Account->>Account: call falback handler (manager)
+    Account->>Manager: setFunctionHandler(functionId, address)
+```
+
+### Execute trnsaction through Plugin and Hook
 
 ```mermaid
 sequenceDiagram
     participant User
     participant Plugin
     participant Manager
+    participant Hook
     participant Account as Account(safe)
 
     User->>Plugin: callFunction(ISafeProtocolManager manager, safe, ...)
@@ -122,13 +170,31 @@ sequenceDiagram
     Plugin->>Plugin: create SafeRootAccess
     Plugin->>Manager: executeRootAccess(safe, SafeRootAccess)
     Manager->>Manager: check if hook is enabled
-    Manager->>Manager: call hook.preCheckRootAccess if hook is enabled
+    Manager->>Hook: preCheckRootAccess if hook is enabled
     Manager->>Manager: check permission of safe (PLUGIN_PERMISSION_EXECUTE_DELEGATECALL)
     Manager->>Account: executeTransactionFromModuleReturnData using SafeRootAccess.action
-    Manager->>Manager: call hook.postCheck if hook is enabled
+    Manager->>Hook: postCheck if hook is enabled
     Manager->>Manager: emit event (RootAccessActionExecuted or RootAccessActionExecutionFailed)
 
 ```
 
-### Execute transaction through Hook
 ### Execute transaction through FunctionHandler
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant Account as Account(safe)
+    participant Manager as Manager(FunctionHandlerManager)
+    participant FunctionHandler
+
+    User->>Account: executeTransaciton(account address, data with registered functionId, ...)
+    Account->>Account: call fallback function
+    Account->>Manager: call with data with registered functionId
+    Manager->>Manager: call fallback function
+    Note right of Manager: this checkis done with account address and functionId
+    Manager->>Manager: check if FunctionHandler is registered for the account
+    Manager->>FunctionHandler: handle(account address, sender, 0, data with registered functionId)
+
+```
+
+FunctionHandler.handle() function is actual function to be called.
